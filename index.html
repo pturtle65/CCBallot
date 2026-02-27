@@ -100,6 +100,33 @@ input[readonly] {
   font-size: 1.2em;
   margin-right: 8px;
 }
+
+@media print {
+  /* Hide buttons and file loaders */
+  .controls, 
+  #fileLoader, 
+  button {
+    display: none !important;
+  }
+
+  /* Ensure the table fits the page and borders are visible */
+  table.ballots {
+    width: 100%;
+    border: 1px solid #000;
+  }
+
+  /* Remove background colors to save ink and improve legibility */
+  .blue td, .beige td, .red td {
+    background-color: transparent !important;
+    color: black !important;
+  }
+
+  /* Optional: Show the status message but remove the background color */
+  table.status {
+    border-top: 1px solid #000;
+    background: none !important;
+  }
+}
   </style>
 
 <script>
@@ -156,8 +183,17 @@ document.addEventListener('DOMContentLoaded', function () {
         
         setVal(lostToday, lostCalc);
         setVal(eodLost, lostCalc);
-    }
 
+        // Visual Alert for Lost Ballots
+        if (lostCalc !== 0) {
+            lostToday.style.color = "red";
+            lostToday.style.fontWeight = "bold";
+        } else {
+            lostToday.style.color = "black";
+            lostToday.style.fontWeight = "normal";
+        }
+    }
+    
     function checkCounts() {
         updateLost();
 
@@ -195,6 +231,9 @@ document.addEventListener('DOMContentLoaded', function () {
             statusMsg.style.backgroundColor = "#f8d7da"; // Light Red
             statusMsg.style.color = "#721c24";
         }
+        const now = new Date();
+        const timeString = now.toLocaleDateString() + " " + now.toLocaleTimeString();
+        document.getElementById('timestamp').textContent = "Generated: " + timeString;
     }
 
     window.checkCounts = checkCounts;
@@ -237,6 +276,10 @@ document.addEventListener('DOMContentLoaded', function () {
         a.href = url;
         a.download = "ballots.json";
         a.click();
+    };
+
+    window.loadFromFile = function () {
+        document.getElementById("fileLoader").click();
     };
 
     document.getElementById("fileLoader").addEventListener("change", function () {
@@ -318,9 +361,12 @@ document.addEventListener('DOMContentLoaded', function () {
   <tr class="beige"><td><label for="unusedToday">Count of Blank Ballots</label></td><td><input id="unusedToday" type="text" class="narrow"></td></tr>
   <tr class="beige"><td><label for="lostToday">Today's Lost Ballots</label></td><td><input id="lostToday" type="text" class="narrow" readonly></td></tr>
 
-  <tr class="section">
-    <th colspan="2">EOD Summary</th>
-  </tr>
+<tr class="section">
+  <th colspan="2">
+    EOD Summary 
+    <span id="timestamp" style="float:right; font-weight:normal; font-size:12px;"></span>
+  </th>
+</tr>
 
   <tr class="blue"><td><label for="eodPublicCount">EOD Public Count</label></td><td><input id="eodPublicCount" type="text" class="narrow"></td></tr>
   <tr class="blue"><td><label for="eodProvs">EOD In Provisional Bag</label></td><td><input id="eodProvs" type="text" class="narrow" readonly /></tr>
@@ -344,6 +390,7 @@ document.addEventListener('DOMContentLoaded', function () {
   <button onclick="saveToFile()">Save</button>
   <button onclick="loadFromFile()">Load</button>
   <button onclick="resetAll()">Reset All</button>
+  <button onclick="window.print()">Print Report</button>
 </div>
 
 <input type="file" id="fileLoader" accept=".json">
