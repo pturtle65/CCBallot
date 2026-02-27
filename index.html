@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ballots</title>
+
+  <style>
+table.ballots {
+  width: 380px;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+table.ballots td, table.ballots th {
+  border: 1px solid #999;
+  padding: 6px 8px;
+  color: black;
+}
+
+table.ballots .section th {
+  background: white;
+  text-align: left;
+  font-size: 15px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-top: 2px solid #666;
+}
+
+.blue td {
+  background: #C0D8F0;
+}
+
+.beige td {
+  background: rgb(238, 236, 225);
+}
+
+.red td {
+  background: rgb(255, 0, 0);
+}
+
+table.status {
+  width: 380px;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+  background: white;
+  text-align: left;
+  font-size: 15px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-top: 2px solid #666;
+}
+
+table.status td {
+  padding: 8px;
+}
+
+.controls {
+  margin-top: 20px;
+}
+
+.controls button {
+  margin-right: 10px;
+  padding: 6px 12px;
+  font-size: 14px;
+}
+  </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // NEW: Prevent event listeners from firing during Load
+    let loading = false;
+
+    // Cache DOM elements
+    let txtDelivered = document.getElementById('txtDelivered');
+    let begBlankBallots = document.getElementById('begBlankBallots'); 
+
+    let castToday = document.getElementById('castToday');
+    let sigsToday = document.getElementById('sigsToday');
+    let provToday = document.getElementById('provToday');
+    let spoiledToday = document.getElementById('spoiledToday');
+    let unusedToday = document.getElementById('unusedToday');
+    let lostToday = document.getElementById('lostToday');
+
+    let eodPublicCount = document.getElementById('eodPublicCount');
+    let eodProvs = document.getElementById('eodProvs');
+    let eodSpoiled = document.getElementById('eodSpoiled');
+    let eodUnused = document.getElementById('eodUnused');
+    let eodLost = document.getElementById('eodLost');
+
+    let statusMsg = document.getElementById('statusMsg');
+
+    let lostCalc = 0;
+
+    function updateLost() {
+      if (loading) return;   // NEW
+      const val1 = parseInt(txtDelivered.value.trim(), 10) || 0;
+      const val2 = parseInt(eodPublicCount.value.trim(), 10) || 0;
+      const val3 = parseInt(provToday.value.trim(), 10) || 0;
+      const val4 = parseInt(spoiledToday.value.trim(), 10) || 0;
+      const val5 = parseInt(unusedToday.value.trim(), 10) || 0;
+
+      lostCalc = val1 - (val2 + val3 + val4 + val5);
+      lostToday.textContent = lostCalc;
+      eodLost.textContent = lostCalc;
+    }
+
+    function checkCounts() {
+      updateLost();
+
+      const val1 = parseInt(sigsToday.value.trim(), 10) || 0;
+      const val2 = parseInt(eodPublicCount.value.trim(), 10) || 0;
+
+      let markup = "<ul>";
+      let err = false;
+
+      if (val1 != val2) {
+         markup += "<li>Public Count does not match Signature List.</li>";
+         err = true;
+      }
+      if (lostCalc != 0) {
+         markup += "<li>Counts are off. (Lost<>0)</li>";
+         err = true;
+      }
+      markup += "</ul>";
+
+      if (!err) {
+         markup = "<p>All counts are valid.</p>";
+      }
+
+      statusMsg.innerHTML = markup;
+      statusMsg.style.backgroundColor = err ? "red" : "rgb(238, 236, 225)";
+    }
+
+    window.checkCounts = checkCounts;
+
+    // -------------------------
+    // EVENT LISTENERS (patched)
+    // -------------------------
+
+    txtDelivered.addEventListener('input', function () {
+      if (loading) return;
+      begBlankBallots.textContent = txtDelivered.value;
+      updateLost();
+    });
+
+    txtDelivered.addEventListener('change', function () {
+      if (loading) return;
+      begBlankBallots.textContent = txtDelivered.value;
+      updateLost();
+    });
+
+    sigsToday.addEventListener('input', function () {
+      if (loading) return;
+      updateLost();
+    });
+
+    sigsToday.addEventListener('change', function () {
+      if (loading) return;
+      updateLost();
+    });
+
+    provToday.addEventListener('input', function () {
+      if (loading) return;
+      eodProvs.textContent = provToday.value;
+      updateLost();
+    });
+
+    provToday.addEventListener('change', function () {
+      if (loading) return;
+      eodProvs.textContent = provToday.value;
+      updateLost();
+    });
+
+    spoiledToday.addEventListener('input', function () {
+      if (loading) return;
+      eodSpoiled.textContent = spoiledToday.value;
+      updateLost();
+    });
+
+    spoiledToday.addEventListener('change', function () {
+      if (loading) return;
+      eodSpoiled.textContent = spoiledToday.value;
+      updateLost();
+    });
+
+    unusedToday.addEventListener('input', function () {
+      if (loading) return;
+      eodUnused.textContent = unusedToday.value;
+      updateLost();
+    });
+
+    unusedToday.addEventListener('change', function () {
+      if (loading) return;
+      eodUnused.textContent = unusedToday.value;
+      updateLost();
+    });
+
+    eodPublicCount.addEventListener('input', function () {
+      if (loading) return;
+      castToday.textContent = eodPublicCount.value;
+      updateLost();
+    });
+
+    eodPublicCount.addEventListener('change', function () {
+      if (loading) return;
+      castToday.textContent = eodPublicCount.value;
+      updateLost();
+    });
+
+    // -------------------------
+    // SAVE / LOAD / RESET
+    // -------------------------
+
+    window.saveToFile = function () {
+      let data = {
+        delivered: txtDelivered.value,
+        begBlank: begBlankBallots.textContent,
+        castToday: castToday.textContent,
+        sigsToday: sigsToday.value,
+        provToday: provToday.value,
+        spoiledToday: spoiledToday.value,
+        unusedToday: unusedToday.value,
+        lostToday: lostToday.textContent,
+        eodPublicCount: eodPublicCount.value,
+        eodProvs: eodProvs.textContent,
+        eodSpoiled: eodSpoiled.textContent,
+        eodUnused: eodUnused.textContent,
+        eodLost: eodLost.textContent
+      };
+
+      let blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      let url = URL.createObjectURL(blob);
+
+      let a = document.createElement("a");
+      a.href = url;
+      a.download = "ballots.json";
+      a.click();
+
+      URL.revokeObjectURL(url);
+    };
+
+    window.loadFromFile = function () {
+      document.getElementById("fileLoader").click();
+    };
+
+    document.getElementById("fileLoader").addEventListener("change", function () {
+      let file = this.files[0];
+      if (!file) return;
+
+      let reader = new FileReader();
+      reader.onload = function (e) {
+        let data = JSON.parse(e.target.result);
+
+        loading = true;   // NEW: disable listeners
+
+        txtDelivered.value = data.delivered || "";
+        begBlankBallots.textContent = data.begBlank || "0";
+
+        castToday.textContent = data.castToday || "";
+        sigsToday.value = data.sigsToday || "";
+        provToday.value = data.provToday || "";
+        spoiledToday.value = data.spoiledToday || "";
+        unusedToday.value = data.unusedToday || "";
+        lostToday.textContent = data.lostToday || "0";
+
+        eodPublicCount.value = data.eodPublicCount || "";
+        eodProvs.textContent = data.eodProvs || "";
+        eodSpoiled.textContent = data.eodSpoiled || "";
+        eodUnused.textContent = data.eodUnused || "";
+        eodLost.textContent = data.eodLost || "0";
+
+        loading = false;  // NEW: re-enable listeners
+
+        updateLost();     // recalc once cleanly
+      };
+      reader.readAsText(file);
+    });
+
+    window.resetAll = function () {
+      loading = true;
+
+      txtDelivered.value = "";
+      begBlankBallots.textContent = "0";
+
+      castToday.textContent = "";
+      sigsToday.value = "";
+      provToday.value = "";
+      spoiledToday.value = "";
+      unusedToday.value = "";
+      lostToday.textContent = "0";
+
+      eodPublicCount.value = "";
+      eodProvs.textContent = "";
+      eodSpoiled.textContent = "";
+      eodUnused.textContent = "";
+      eodLost.textContent = "0";
+
+      statusMsg.innerHTML = "";
+      statusMsg.style.backgroundColor = "white";
+
+      loading = false;
+    };
+
+});
+</script>
+
+</head>
+<body>
+
+  <table class="ballots">
+  <tr class="section">
+    <th colspan="2">ELECTION DAY</th>
+  </tr>
+
+  <tr class="blue">
+    <td>Delivered:</td>
+    <td><input id="txtDelivered" type="text" style="width:80px;"></td>
+  </tr>
+
+  <tr class="blue"><td>BEG Public Count</td><td>0</td></tr>
+  <tr class="blue"><td>BEG In Provisional Bag (Cum.)</td><td>0</td></tr>
+  <tr class="blue"><td>BEG Spoiled sent to McKinney (Cum.)</td><td>0</td></tr>
+
+  <tr class="blue">
+    <td>BEG Blank Ballots</td>
+    <td id="begBlankBallots">0</td>
+  </tr>
+
+  <tr class="blue"><td>BEG Lost Ballots (Cum.)</td><td>0</td></tr>
+
+  <tr class="section">
+    <th colspan="2">Today's Action</th>
+  </tr>
+
+  <tr class="beige"><td>Ballots Cast Today (delta P.C.s)</td><td id="castToday"></td></tr>
+  <tr class="beige"><td># of Checkin Signatures/Machines</td><td><input id="sigsToday" type="text" style="width:80px;"></td></tr>
+  <tr class="beige"><td>Placed today In Provisional Bag</td><td><input id="provToday" type="text" style="width:80px;"></td></tr>
+  <tr class="beige"><td># Spoiled today in Envelope</td><td><input id="spoiledToday" type="text" style="width:80px;"></td></tr>
+  <tr class="beige"><td>Count of Blank Ballots</td><td><input id="unusedToday" type="text" style="width:80px;"></td></tr>
+  <tr class="beige"><td>Today's Lost Ballots</td><td id="lostToday"></td></tr>
+
+  <tr class="section">
+    <th colspan="2">EOD Summary</th>
+  </tr>
+
+  <tr class="blue"><td>EOD Public Count</td><td><input id="eodPublicCount" type="text" style="width:80px;"></td></tr>
+  <tr class="blue"><td>EOD In Provisional Bag</td><td id="eodProvs"></td></tr>
+  <tr class="blue"><td>EOD Spoiled sent to McKinney</td><td id="eodSpoiled"></td></tr>
+  <tr class="blue"><td>EOD Blank Ballots</td><td id="eodUnused"></td></tr>
+  <tr class="blue"><td>EOD Lost Ballots</td><td id="eodLost"></td></tr>
+</table>
+
+<table class="status">
+  <tr>
+    <th>COUNT STATUS</th>
+  </tr>
+  <tr>
+    <td id="statusMsg"></td>
+  </tr>
+</table>
+
+<button onclick="checkCounts()">Check All Counts</button>
+
+<div class="controls">
+  <button onclick="saveToFile()">Save</button>
+  <button onclick="loadFromFile()">Load</button>
+  <button onclick="resetAll()">Reset All</button>
+</div>
+
+<input type="file" id="fileLoader" accept=".json" style="display:none;">
+
+</body>
+</html>
