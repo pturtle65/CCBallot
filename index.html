@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ballots</title>
+
+  <style>
+table.ballots {
+  width: 380px;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+table.ballots td, table.ballots th {
+  border: 1px solid #999;
+  padding: 6px 8px;
+  color: black;
+}
+
+table.ballots .section th {
+  background: white;
+  text-align: left;
+  font-size: 15px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-top: 2px solid #666;
+}
+
+.blue td {
+  background: #C0D8F0;
+}
+
+.beige td {
+  background: rgb(238, 236, 225);
+}
+
+.red td {
+  background: rgb(255, 0, 0);
+}
+
+table.status {
+  width: 380px;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+  background: white;
+  text-align: left;
+  font-size: 15px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-top: 2px solid #666;
+}
+
+table.status td {
+  padding: 8px;
+}
+
+.controls {
+  margin-top: 20px;
+}
+
+.controls button {
+  margin-right: 10px;
+  padding: 6px 12px;
+  font-size: 14px;
+}
+
+input.narrow {
+  width: 80px;
+}
+
+#fileLoader {
+  display: none;
+}
+
+input[readonly] {
+  background-color: #f0f0f0; /* Light grey */
+  border: 1px solid #ccc;
+  color: #555;
+  cursor: not-allowed;
+}
+
+/* Highlight invalid inputs */
+.invalid-input {
+  border: 2px solid red !important;
+  background-color: #fff0f0;
+}
+
+/* Success Icon Styling */
+.success-icon {
+  color: green;
+  font-size: 1.2em;
+  margin-right: 8px;
+}
+
+/* Error Icon Styling */
+.error-icon {
+  color: #b30000;
+  font-size: 1.2em;
+  margin-right: 8px;
+}
+  </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    let loading = false;
+
+    // Cache DOM elements
+    const txtDelivered = document.getElementById('txtDelivered');
+    const begBlankBallots = document.getElementById('begBlankBallots'); 
+
+    const castToday = document.getElementById('castToday');
+    const sigsToday = document.getElementById('sigsToday');
+    const provToday = document.getElementById('provToday');
+    const spoiledToday = document.getElementById('spoiledToday');
+    const unusedToday = document.getElementById('unusedToday');
+    const lostToday = document.getElementById('lostToday');
+
+    const eodPublicCount = document.getElementById('eodPublicCount');
+    const eodProvs = document.getElementById('eodProvs');
+    const eodSpoiled = document.getElementById('eodSpoiled');
+    const eodUnused = document.getElementById('eodUnused');
+    const eodLost = document.getElementById('eodLost');
+
+    const statusMsg = document.getElementById('statusMsg');
+
+    let lostCalc = 0;
+
+    // Helper to handle both Input values and Cell text
+    function setVal(el, val) {
+        if (!el) return;
+        if (el.tagName === 'INPUT') {
+            el.value = val;
+        } else {
+            el.textContent = val;
+        }
+    }
+
+    function getVal(el) {
+        if (!el) return 0;
+        let v = (el.tagName === 'INPUT') ? el.value : el.textContent;
+        return parseInt(v.trim(), 10) || 0;
+    }
+
+    function updateLost() {
+        if (loading) return;
+        const val1 = getVal(txtDelivered);
+        const val2 = getVal(eodPublicCount);
+        const val3 = getVal(provToday);
+        const val4 = getVal(spoiledToday);
+        const val5 = getVal(unusedToday);
+
+        lostCalc = val1 - (val2 + val3 + val4 + val5);
+        
+        setVal(lostToday, lostCalc);
+        setVal(eodLost, lostCalc);
+    }
+
+    function checkCounts() {
+        updateLost();
+
+        const val1 = getVal(sigsToday);
+        const val2 = getVal(eodPublicCount);
+
+        // Reset styles first
+        sigsToday.classList.remove('invalid-input');
+        eodPublicCount.classList.remove('invalid-input');
+
+        let markup = "";
+        let err = false;
+
+        // Validation Logic
+        if (val1 !== val2) {
+            markup += "<li><span class='error-icon'>⚠️</span>Public Count does not match Signature List.</li>";
+            sigsToday.classList.add('invalid-input');
+            eodPublicCount.classList.add('invalid-input');
+            err = true;
+        }
+        
+        if (lostCalc !== 0) {
+            markup += "<li><span class='error-icon'>⚠️</span>Counts are off (Lost is " + lostCalc + ").</li>";
+            err = true;
+        }
+
+        if (!err) {
+            // Success State
+            statusMsg.innerHTML = "<p><span class='success-icon'>✅</span> <strong>All counts are valid.</strong></p>";
+            statusMsg.style.backgroundColor = "#d4edda"; // Light Green
+            statusMsg.style.color = "#155724";
+        } else {
+            // Error State
+            statusMsg.innerHTML = "<ul>" + markup + "</ul>";
+            statusMsg.style.backgroundColor = "#f8d7da"; // Light Red
+            statusMsg.style.color = "#721c24";
+        }
+    }
+
+    window.checkCounts = checkCounts;
+
+    // -------------------------
+    // EVENT LISTENERS
+    // -------------------------
+    const inputs = [txtDelivered, sigsToday, provToday, spoiledToday, unusedToday, eodPublicCount];
+    
+    inputs.forEach(input => {
+        input.addEventListener('input', () => {
+            if (loading) return;
+            // Mirroring logic
+            if (input === txtDelivered) setVal(begBlankBallots, txtDelivered.value);
+            if (input === provToday) setVal(eodProvs, provToday.value);
+            if (input === spoiledToday) setVal(eodSpoiled, spoiledToday.value);
+            if (input === unusedToday) setVal(eodUnused, unusedToday.value);
+            if (input === eodPublicCount) setVal(castToday, eodPublicCount.value);
+            
+            updateLost();
+        });
+    });
+
+    // -------------------------
+    // SAVE / LOAD / RESET
+    // -------------------------
+    window.saveToFile = function () {
+        let data = {
+            delivered: txtDelivered.value,
+            sigsToday: sigsToday.value,
+            provToday: provToday.value,
+            spoiledToday: spoiledToday.value,
+            unusedToday: unusedToday.value,
+            eodPublicCount: eodPublicCount.value
+        };
+
+        let blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = "ballots.json";
+        a.click();
+    };
+
+    document.getElementById("fileLoader").addEventListener("change", function () {
+        let file = this.files[0];
+        if (!file) return;
+        let reader = new FileReader();
+        reader.onload = function (e) {
+            let data = JSON.parse(e.target.result);
+            loading = true;
+
+            txtDelivered.value = data.delivered || "";
+            sigsToday.value = data.sigsToday || "";
+            provToday.value = data.provToday || "";
+            spoiledToday.value = data.spoiledToday || "";
+            unusedToday.value = data.unusedToday || "";
+            eodPublicCount.value = data.eodPublicCount || "";
+
+            // Force refresh of mirrored labels/inputs
+            setVal(begBlankBallots, txtDelivered.value);
+            setVal(eodProvs, provToday.value);
+            setVal(eodSpoiled, spoiledToday.value);
+            setVal(eodUnused, unusedToday.value);
+            setVal(castToday, eodPublicCount.value);
+
+            loading = false;
+            updateLost();
+        };
+        reader.readAsText(file);
+    });
+
+    window.resetAll = function () {
+        loading = true;
+        [txtDelivered, sigsToday, provToday, spoiledToday, unusedToday, eodPublicCount].forEach(i => i.value = "");
+        [begBlankBallots, castToday, lostToday, eodProvs, eodSpoiled, eodUnused, eodLost].forEach(el => setVal(el, "0"));
+        statusMsg.innerHTML = "";
+        statusMsg.style.backgroundColor = "white";
+        // Clear validation styles
+        sigsToday.classList.remove('invalid-input');
+        eodPublicCount.classList.remove('invalid-input');
+        
+        statusMsg.style.color = "black"; // Reset text color
+        loading = false;
+    };
+});
+</script>
+
+</head>
+<body>
+
+  <table class="ballots">
+  <tr class="section">
+    <th colspan="2">ELECTION DAY</th>
+  </tr>
+
+  <tr class="blue">
+    <td><label for="txtDelivered">Delivered:</label></td>
+    <td><input id="txtDelivered" type="text" class="narrow"></td>
+  </tr>
+
+  <tr class="blue"><td><label for="begPublicCount">BEG Public Count</label></td><td><input id="begPublicCount" type="text" class="narrow" value="0" readonly /></td></tr>
+  <tr class="blue"><td><label for="begProvs">BEG In Provisional Bag (Cum.)</label></td><td><input id="begProvs" type="text" class="narrow" value="0" readonly /></td></tr>
+  <tr class="blue"><td><label for="begSpoiled">BEG Spoiled sent to McKinney (Cum.)</label></td><td><input id="begSpoiled" type="text" class="narrow" value="0" readonly /></td></tr>
+
+  <tr class="blue">
+    <td><label for="begBlankBallots">BEG Blank Ballots</label></td>
+    <td><input id="begBlankBallots" type="text" class="narrow" value="0" readonly /></td>
+  </tr>
+
+  <tr class="blue"><td><label for="begLostBallots">BEG Lost Ballots (Cum.)</label></td><td><input id="begLostBallots" type="text" class="narrow" value="0" readonly /></td></tr>
+
+  <tr class="section">
+    <th colspan="2">Today's Action</th>
+  </tr>
+
+  <tr class="beige"><td><label for="castToday">Ballots Cast Today (delta P.C.s)</label></td><td id="castToday"></td></tr>
+  <tr class="beige"><td><label for="sigsToday"># of Checkin Signatures/Machines</label></td><td><input id="sigsToday" type="text" class="narrow"></td></tr>
+  <tr class="beige"><td><label for="provToday">Votes today Into Provisional Bag</label></td><td><input id="provToday" type="text" class="narrow"></td></tr>
+  <tr class="beige"><td><label for="spoiledToday"># Spoiled today in Envelope</label></td><td><input id="spoiledToday" type="text" class="narrow"></td></tr>
+  <tr class="beige"><td><label for="unusedToday">Count of Blank Ballots</label></td><td><input id="unusedToday" type="text" class="narrow"></td></tr>
+  <tr class="beige"><td><label for="lostToday">Today's Lost Ballots</label></td><td><input id="lostToday" type="text" class="narrow" readonly></td></tr>
+
+  <tr class="section">
+    <th colspan="2">EOD Summary</th>
+  </tr>
+
+  <tr class="blue"><td><label for="eodPublicCount">EOD Public Count</label></td><td><input id="eodPublicCount" type="text" class="narrow"></td></tr>
+  <tr class="blue"><td><label for="eodProvs">EOD In Provisional Bag</label></td><td><input id="eodProvs" type="text" class="narrow" readonly /></tr>
+  <tr class="blue"><td><label for="eodSpoiled">EOD Spoiled sent to McKinney</label></td><td><input id="eodSpoiled" type="text" class="narrow" readonly /></td></tr>
+  <tr class="blue"><td><label for="eodUnused">EOD Blank Ballots</label></td><td><input id="eodUnused" type="text" class="narrow" readonly /></td></tr>
+  <tr class="blue"><td><label for="eodLost">EOD Lost Ballots</label></td><td><input id="eodLost" type="text" class="narrow" readonly /></td></tr>
+</table>
+
+<table class="status">
+  <tr>
+    <th>COUNT STATUS</th>
+  </tr>
+  <tr>
+    <td id="statusMsg" aria-live="polite" role="status"></td>
+  </tr>
+</table>
+
+<button onclick="checkCounts()">Check All Counts</button>
+
+<div class="controls">
+  <button onclick="saveToFile()">Save</button>
+  <button onclick="loadFromFile()">Load</button>
+  <button onclick="resetAll()">Reset All</button>
+</div>
+
+<input type="file" id="fileLoader" accept=".json">
+
+</body>
+</html>
