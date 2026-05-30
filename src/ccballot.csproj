@@ -17,6 +17,15 @@
     </ItemGroup>
     <Copy SourceFiles="@(_WwwRoot)"
           DestinationFiles="@(_WwwRoot->'$(MSBuildProjectDirectory)\..\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <PropertyGroup>
+      <_IndexPath>$(MSBuildProjectDirectory)\..\index.html</_IndexPath>
+    </PropertyGroup>
+    <ReadLinesFromFile File="$(_IndexPath)">
+      <Output TaskParameter="Lines" ItemName="_IndexLines" />
+    </ReadLinesFromFile>
+    <WriteLinesToFile File="$(_IndexPath)"
+        Lines="@(_IndexLines->Replace('href=&quot;/&quot;', 'href=&quot;/ccballot/&quot;'))"
+        Overwrite="true" />
   </Target>
 
 </Project>
