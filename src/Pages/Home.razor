@@ -8,7 +8,7 @@
 <table class="ballots">
     <tr class="blue" style="border: 2px solid black;">
         <td><label for="pageDate">Date</label></td>
-        <td><input id="pageDate" @bind="_current.PageDate" @bind:format="yyyy-MM-dd" type="date" class="narrow"></td>
+        <td><input id="pageDate" @bind="_current.PageDate" @bind:format="yyyy-MM-dd" type="date" class="narrow" @onclick="TriggerDatePicker"></td>
         <td><label for="dayNumber">Day #</label></td>
         <td style="display:flex; gap:4px; align-items:center;">
             <button @onclick="() => GoToDayAsync(_current.DayNumber - 1)" title="Previous day">&lt;&lt;</button>
@@ -554,6 +554,11 @@
     {
         await Storage.DeleteRecordAsync(record.Id);
         await RefreshHistory();
+    }
+
+    private async Task TriggerDatePicker()
+    {
+        await JS.InvokeVoidAsync("triggerDatePicker", "pageDate");
     }
 
     private async Task ResetAll()

@@ -4,7 +4,7 @@ public class RevisedBallotRecord
 {
     public int Id { get; set; }
     public DateTime DateSaved { get; set; } = DateTime.Now;
-    public DateTime PageDate { get; set; }
+    public DateTime PageDate { get; set; } = DateTime.Today;
     public int DayNumber { get; set; }
     public bool IsElectionDay { get; set; }
 
