@@ -1,0 +1,583 @@
+﻿@page "/"
+@using ccballot.Services
+@inject LocalStorageService Storage
+@inject IJSRuntime JS
+
+<PageTitle>Ballots - Blazor Edition</PageTitle>
+
+<table class="ballots">
+    <tr class="blue" style="border: 2px solid black;">
+        <td><label for="pageDate">Date</label></td>
+        <td><input id="pageDate" @bind="_current.PageDate" @bind:format="yyyy-MM-dd" type="date" class="narrow"></td>
+        <td><label for="dayNumber">Day #</label></td>
+        <td style="display:flex; gap:4px; align-items:center;">
+            <button @onclick="() => GoToDayAsync(_current.DayNumber - 1)" title="Previous day">&lt;&lt;</button>
+            <input id="dayNumber" @bind="_current.DayNumber" @bind:event="oninput" type="number" class="narrow" style="width:50px;" min="1">
+            <button @onclick="() => GoToDayAsync(_current.DayNumber + 1)" title="Next day">&gt;&gt;</button>
+            <span style="margin:auto 0; margin-left:6px;">
+                <label style="cursor:pointer;"><input type="radio" name="evEd" checked="@(!_current.IsElectionDay)" @onchange="() => _current.IsElectionDay = false" /> EV</label>
+                <label style="cursor:pointer; margin-left:8px;"><input type="radio" name="evEd" checked="@_current.IsElectionDay" @onchange="() => _current.IsElectionDay = true" /> ED</label>
+            </span>
+        </td>
+    </tr>
+
+    <tr class="section">
+        <th colspan="4">
+            @(_current.IsElectionDay ? "ELECTION DAY" : $"EARLY VOTING — Day {_current.DayNumber}")
+            <span style="float:right; font-weight:normal; font-size:12px;">@timestamp</span>
+        </th>
+    </tr>
+
+    <tr class="header-row">
+        <td></td>
+        <td style="font-weight:bold; font-size:0.85em">Sheets</td>
+        <td style="font-weight:bold; font-size:0.85em">Cards</td>
+        <td style="font-weight:bold; font-size:0.85em">Total</td>
+    </tr>
+
+    <tr class="blue">
+        <td><label for="deliveredSheets">Delivered:</label></td>
+        <td><input id="deliveredSheets" @bind="_current.DeliveredSheets" @bind:event="oninput" type="number" class="narrow"></td>
+        <td><input id="deliveredCards" @bind="_current.DeliveredCards" @bind:event="oninput" type="number" class="narrow"></td>
+        <td>@deliveredTotal</td>
+    </tr>
+
+    <tr class="blue">
+        <td><label>BEG Cast in Ballot Box</label></td>
+        <td>@_current.Beg.Sheets.CastInBox</td>
+        <td>@_current.Beg.Cards.CastInBox</td>
+        <td>@(_current.Beg.Sheets.CastInBox + _current.Beg.Cards.CastInBox)</td>
+    </tr>
+    <tr class="blue">
+        <td><label>BEG Provisionals In Bag</label></td>
+        <td>@_current.Beg.Sheets.Provisionals</td>
+        <td>@_current.Beg.Cards.Provisionals</td>
+        <td>@(_current.Beg.Sheets.Provisionals + _current.Beg.Cards.Provisionals)</td>
+    </tr>
+    <tr class="blue">
+        <td><label>BEG Spoiled Sent To McKinney</label></td>
+        <td>@_current.Beg.Sheets.Spoiled</td>
+        <td>@_current.Beg.Cards.Spoiled</td>
+        <td>@(_current.Beg.Sheets.Spoiled + _current.Beg.Cards.Spoiled)</td>
+    </tr>
+    <tr class="blue">
+        <td><label>BEG Blank Ballots</label></td>
+        <td style="color: @(begUnusedSheets < 0 ? "red" : "black")">@begUnusedSheets</td>
+        <td style="color: @(begUnusedCards < 0 ? "red" : "black")">@begUnusedCards</td>
+        <td>@(begUnusedSheets + begUnusedCards)</td>
+    </tr>
+    <tr class="blue">
+        <td><label>BEG Public Count</label></td>
+        <td colspan="3">@_current.Beg.PublicCount</td>
+    </tr>
+    <tr class="blue">
+        <td><label>BEG Lost Ballots</label></td>
+        <td>0</td>
+        <td>0</td>
+        <td>0</td>
+    </tr>
+
+    <tr class="section"><th colspan="4">Today's Action</th></tr>
+
+    <tr class="beige">
+        <td><label>Public Count (Machine)</label></td>
+        <td colspan="3">@(_current.Eod.PublicCount)</td>
+    </tr>
+    <tr class="beige">
+        <td><label for="castInBoxTodaySheets">Ballots Cast in Box</label></td>
+        <td><input id="castInBoxTodaySheets" @bind="_current.Daily.Sheets.CastInBox" @bind:event="oninput" type="number" class="narrow"></td>
+        <td><input id="castInBoxTodayCards" @bind="_current.Daily.Cards.CastInBox" @bind:event="oninput" type="number" class="narrow"></td>
+        <td>@(_current.Daily.Sheets.CastInBox + _current.Daily.Cards.CastInBox)</td>
+    </tr>
+    <tr class="beige">
+        <td><label for="sigsTodaySheets"># Check-in Sigs</label></td>
+        <td><input id="sigsTodaySheets" @bind="_current.Daily.Sheets.Signatures" @bind:event="oninput" type="number" class="narrow @(sigsTodayTotal != netPublicCount ? "invalid-input" : "")"></td>
+        <td><input id="sigsTodayCards" @bind="_current.Daily.Cards.Signatures" @bind:event="oninput" type="number" class="narrow @(sigsTodayTotal != netPublicCount ? "invalid-input" : "")"></td>
+        <td>@sigsTodayTotal</td>
+    </tr>
+    <tr class="beige">
+        <td><label for="provTodaySheets">Prov. Today</label></td>
+        <td><input id="provTodaySheets" @bind="_current.Daily.Sheets.Provisionals" @bind:event="oninput" type="number" class="narrow"></td>
+        <td><input id="provTodayCards" @bind="_current.Daily.Cards.Provisionals" @bind:event="oninput" type="number" class="narrow"></td>
+        <td>@(_current.Daily.Sheets.Provisionals + _current.Daily.Cards.Provisionals)</td>
+    </tr>
+    <tr class="beige">
+        <td><label for="spoiledTodaySheets">Spoiled Today</label></td>
+        <td><input id="spoiledTodaySheets" @bind="_current.Daily.Sheets.Spoiled" @bind:event="oninput" type="number" class="narrow"></td>
+        <td><input id="spoiledTodayCards" @bind="_current.Daily.Cards.Spoiled" @bind:event="oninput" type="number" class="narrow"></td>
+        <td>@(_current.Daily.Sheets.Spoiled + _current.Daily.Cards.Spoiled)</td>
+    </tr>
+    <tr class="beige">
+        <td><label for="unusedTodaySheets">Blank Ballots</label></td>
+        <td><input id="unusedTodaySheets" @bind="_current.Daily.Sheets.Unused" @bind:event="oninput" type="number" class="narrow"></td>
+        <td><input id="unusedTodayCards" @bind="_current.Daily.Cards.Unused" @bind:event="oninput" type="number" class="narrow"></td>
+        <td>@(_current.Daily.Sheets.Unused + _current.Daily.Cards.Unused)</td>
+    </tr>
+    <tr class="beige">
+        <td><label>Today's Lost Ballots</label></td>
+        <td style="color: @(lostSheets != 0 ? "red" : "black"); font-weight: @(lostSheets != 0 ? "bold" : "normal")">@lostSheets</td>
+        <td style="color: @(lostCards != 0 ? "red" : "black"); font-weight: @(lostCards != 0 ? "bold" : "normal")">@lostCards</td>
+        <td style="color: @(lostCalc != 0 ? "red" : "black"); font-weight: @(lostCalc != 0 ? "bold" : "normal")">@lostCalc</td>
+    </tr>
+
+    <tr class="section"><th colspan="4">EOD Summary</th></tr>
+    <tr class="blue">
+        <td><label for="eodPublicCount">EOD Public Count</label></td>
+        <td colspan="3"><input id="eodPublicCount" @bind="_current.Eod.PublicCount" @bind:event="oninput" type="number" class="narrow @(sigsTodayTotal != netPublicCount ? "invalid-input" : "")"></td>
+    </tr>
+    <tr class="blue">
+        <td><label>EOD Cast in Ballot Box</label></td>
+        <td>@(_current.Beg.Sheets.CastInBox + _current.Daily.Sheets.CastInBox)</td>
+        <td>@(_current.Beg.Cards.CastInBox + _current.Daily.Cards.CastInBox)</td>
+        <td>@(_current.Beg.Sheets.CastInBox + _current.Daily.Sheets.CastInBox + _current.Beg.Cards.CastInBox + _current.Daily.Cards.CastInBox)</td>
+    </tr>
+    <tr class="blue">
+        <td><label>EOD Prov. Bag</label></td>
+        <td>@(_current.Beg.Sheets.Provisionals + _current.Daily.Sheets.Provisionals)</td>
+        <td>@(_current.Beg.Cards.Provisionals + _current.Daily.Cards.Provisionals)</td>
+        <td>@(_current.Beg.Sheets.Provisionals + _current.Daily.Sheets.Provisionals + _current.Beg.Cards.Provisionals + _current.Daily.Cards.Provisionals)</td>
+    </tr>
+    <tr class="blue">
+        <td><label>EOD Spoiled</label></td>
+        <td>@(_current.Beg.Sheets.Spoiled + _current.Daily.Sheets.Spoiled)</td>
+        <td>@(_current.Beg.Cards.Spoiled + _current.Daily.Cards.Spoiled)</td>
+        <td>@(_current.Beg.Sheets.Spoiled + _current.Daily.Sheets.Spoiled + _current.Beg.Cards.Spoiled + _current.Daily.Cards.Spoiled)</td>
+    </tr>
+    <tr class="blue">
+        <td><label>EOD Blank Ballots</label></td>
+        <td>@eodUnusedSheets</td>
+        <td>@eodUnusedCards</td>
+        <td>@(eodUnusedSheets + eodUnusedCards)</td>
+    </tr>
+    <tr class="blue">
+        <td><label>EOD Lost Ballots</label></td>
+        <td style="color: @(lostSheets != 0 ? "red" : "black"); font-weight: @(lostSheets != 0 ? "bold" : "normal")">@lostSheets</td>
+        <td style="color: @(lostCards != 0 ? "red" : "black"); font-weight: @(lostCards != 0 ? "bold" : "normal")">@lostCards</td>
+        <td style="color: @(lostCalc != 0 ? "red" : "black"); font-weight: @(lostCalc != 0 ? "bold" : "normal")">@lostCalc</td>
+    </tr>
+</table>
+
+<div class="status-box @(isValid ? "success" : "error")">
+    @if (isValid)
+    {
+        <span>&#10004; <strong>All counts are valid.</strong></span>
+    }
+    else
+    {
+        <ul>
+            @if (sigsTodayTotal != netPublicCount) { <li>&#9888; Public Count does not match Signature Count.</li> }
+            @if (lostCalc != 0) { <li>&#9888; Counts are off (Lost is @lostCalc).</li> }
+        </ul>
+    }
+</div>
+
+<div class="controls">
+    <button @onclick="SaveRecord" style="font-weight:bold">Save</button>
+    <button @onclick="ResetAll" disabled="@resetBusy">Reset All</button>
+    <button @onclick="@(() => JS.InvokeVoidAsync("window.print"))">Print Report</button>
+</div>
+
+<div class="history-section" style="margin-top: 40px;">
+    <h3>Saved History</h3>
+    @if (history == null || !history.Any())
+    {
+        <p><em>No records saved yet.</em></p>
+    }
+    else
+    {
+        <table class="ballots" style="width: 100%;">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Day</th>
+                    <th>Type</th>
+                    <th>Sheets</th>
+                    <th>Cards</th>
+                    <th>Lost</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var record in history)
+                {
+                    <tr>
+                        <td>@record.PageDate.ToString("MM/dd")</td>
+                        <td>@record.DayNumber</td>
+                        <td>@(record.IsElectionDay ? "ED" : "EV")</td>
+                        <td>@record.DeliveredSheets</td>
+                        <td>@record.DeliveredCards</td>
+                        <td style="color: @(LostFromRecord(record) != 0 ? "red" : "black")">@LostFromRecord(record)</td>
+                        <td>
+                            <button @onclick="() => LoadRecord(record)">Load</button>
+                            <button @onclick="() => DeleteRecord(record)" style="color:red">&#10005;</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    private RevisedBallotRecord _current = new();
+    private string timestamp = "New Session";
+    private bool resetBusy;
+    private List<RevisedBallotRecord> history = new();
+
+    // ----- Computed totals -----
+    private int deliveredTotal => _current.DeliveredSheets + _current.DeliveredCards;
+
+    private int begUnusedSheets => _current.DeliveredSheets
+        - _current.Beg.Sheets.Provisionals
+        - _current.Beg.Sheets.Spoiled
+        - _current.Beg.Sheets.CastInBox;
+
+    private int begUnusedCards => _current.DeliveredCards
+        - _current.Beg.Cards.Provisionals
+        - _current.Beg.Cards.Spoiled
+        - _current.Beg.Cards.CastInBox;
+
+    private int begUnusedTotal => begUnusedSheets + begUnusedCards;
+
+    private int lostSheets => begUnusedSheets
+        - _current.Daily.Sheets.CastInBox
+        - _current.Daily.Sheets.Provisionals
+        - _current.Daily.Sheets.Spoiled
+        - _current.Daily.Sheets.Unused;
+
+    private int lostCards => begUnusedCards
+        - _current.Daily.Cards.CastInBox
+        - _current.Daily.Cards.Provisionals
+        - _current.Daily.Cards.Spoiled
+        - _current.Daily.Cards.Unused;
+
+    private int lostCalc => lostSheets + lostCards;
+
+    private int eodUnusedSheets => _current.Daily.Sheets.Unused;
+    private int eodUnusedCards => _current.Daily.Cards.Unused;
+
+    private int netPublicCount => _current.Eod.PublicCount - _current.Beg.PublicCount;
+    private int sigsTodayTotal => _current.Daily.Sheets.Signatures + _current.Daily.Cards.Signatures;
+    private bool isValid => (sigsTodayTotal == netPublicCount) && (lostCalc == 0);
+
+    private static int LostFromRecord(RevisedBallotRecord r) =>
+        (r.DeliveredSheets + r.DeliveredCards
+            - r.Beg.Sheets.Provisionals - r.Beg.Cards.Provisionals
+            - r.Beg.Sheets.Spoiled - r.Beg.Cards.Spoiled
+            - r.Beg.Sheets.CastInBox - r.Beg.Cards.CastInBox)
+        - (r.Daily.Sheets.CastInBox + r.Daily.Cards.CastInBox)
+        - (r.Daily.Sheets.Provisionals + r.Daily.Cards.Provisionals)
+        - (r.Daily.Sheets.Spoiled + r.Daily.Cards.Spoiled)
+        - (r.Daily.Sheets.Unused + r.Daily.Cards.Unused);
+
+    // ----- Helpers -----
+    private void ClearTodayFields() => _current.Daily = new SectionData();
+    private void ClearBegFields() => _current.Beg = new SectionData();
+
+    private void ClearAllFields()
+    {
+        _current.DeliveredSheets = 0;
+        _current.DeliveredCards = 0;
+        _current.Beg = new SectionData();
+        _current.Daily = new SectionData();
+        _current.Eod = new SectionData();
+    }
+
+    private bool FormHasData() =>
+        _current.DeliveredSheets != 0 || _current.DeliveredCards != 0 ||
+        _current.Beg.Sheets.Provisionals != 0 || _current.Beg.Cards.Provisionals != 0 ||
+        _current.Beg.Sheets.Spoiled != 0 || _current.Beg.Cards.Spoiled != 0 ||
+        _current.Beg.PublicCount != 0 ||
+        _current.Beg.Sheets.CastInBox != 0 || _current.Beg.Cards.CastInBox != 0 ||
+        _current.Daily.Sheets.CastInBox != 0 || _current.Daily.Cards.CastInBox != 0 ||
+        _current.Daily.Sheets.Signatures != 0 || _current.Daily.Cards.Signatures != 0 ||
+        _current.Daily.Sheets.Provisionals != 0 || _current.Daily.Cards.Provisionals != 0 ||
+        _current.Daily.Sheets.Spoiled != 0 || _current.Daily.Cards.Spoiled != 0 ||
+        _current.Daily.Sheets.Unused != 0 || _current.Daily.Cards.Unused != 0 ||
+        _current.Eod.PublicCount != 0;
+
+    private void RolloverFrom(RevisedBallotRecord prev)
+    {
+        _current.DeliveredSheets = prev.DeliveredSheets;
+        _current.DeliveredCards = prev.DeliveredCards;
+        _current.Beg.Sheets.Provisionals = prev.Eod.Sheets.Provisionals;
+        _current.Beg.Cards.Provisionals = prev.Eod.Cards.Provisionals;
+        _current.Beg.Sheets.Spoiled = prev.Eod.Sheets.Spoiled;
+        _current.Beg.Cards.Spoiled = prev.Eod.Cards.Spoiled;
+        _current.Beg.Sheets.CastInBox = prev.Eod.Sheets.CastInBox;
+        _current.Beg.Cards.CastInBox = prev.Eod.Cards.CastInBox;
+        _current.Beg.PublicCount = prev.Eod.PublicCount;
+    }
+
+    private void CopyToCurrent(RevisedBallotRecord r)
+    {
+        _current.PageDate = r.PageDate;
+        _current.DayNumber = r.DayNumber;
+        _current.IsElectionDay = r.IsElectionDay;
+        _current.DeliveredSheets = r.DeliveredSheets;
+        _current.DeliveredCards = r.DeliveredCards;
+        _current.Beg = new SectionData
+        {
+            Sheets = new Snapshot
+            {
+                Provisionals = r.Beg.Sheets.Provisionals,
+                Spoiled = r.Beg.Sheets.Spoiled,
+                CastInBox = r.Beg.Sheets.CastInBox,
+                Signatures = r.Beg.Sheets.Signatures,
+                Unused = r.Beg.Sheets.Unused
+            },
+            Cards = new Snapshot
+            {
+                Provisionals = r.Beg.Cards.Provisionals,
+                Spoiled = r.Beg.Cards.Spoiled,
+                CastInBox = r.Beg.Cards.CastInBox,
+                Signatures = r.Beg.Cards.Signatures,
+                Unused = r.Beg.Cards.Unused
+            },
+            PublicCount = r.Beg.PublicCount
+        };
+        _current.Daily = new SectionData
+        {
+            Sheets = new Snapshot
+            {
+                CastInBox = r.Daily.Sheets.CastInBox,
+                Signatures = r.Daily.Sheets.Signatures,
+                Provisionals = r.Daily.Sheets.Provisionals,
+                Spoiled = r.Daily.Sheets.Spoiled,
+                Unused = r.Daily.Sheets.Unused
+            },
+            Cards = new Snapshot
+            {
+                CastInBox = r.Daily.Cards.CastInBox,
+                Signatures = r.Daily.Cards.Signatures,
+                Provisionals = r.Daily.Cards.Provisionals,
+                Spoiled = r.Daily.Cards.Spoiled,
+                Unused = r.Daily.Cards.Unused
+            },
+            PublicCount = 0
+        };
+        _current.Eod = new SectionData
+        {
+            Sheets = new Snapshot
+            {
+                CastInBox = r.Eod.Sheets.CastInBox,
+                Provisionals = r.Eod.Sheets.Provisionals,
+                Spoiled = r.Eod.Sheets.Spoiled,
+                Unused = r.Eod.Sheets.Unused
+            },
+            Cards = new Snapshot
+            {
+                CastInBox = r.Eod.Cards.CastInBox,
+                Provisionals = r.Eod.Cards.Provisionals,
+                Spoiled = r.Eod.Cards.Spoiled,
+                Unused = r.Eod.Cards.Unused
+            },
+            PublicCount = r.Eod.PublicCount
+        };
+    }
+
+    // ----- Navigation -----
+    private async Task GoToDayAsync(int targetDay)
+    {
+        if (targetDay < 1) return;
+        int prevDay = _current.DayNumber;
+        if (targetDay == prevDay) return;
+
+        if (FormHasData())
+            await SaveRecord();
+
+        int delta = targetDay - prevDay;
+        _current.DayNumber = targetDay;
+        _current.PageDate = _current.PageDate.AddDays(delta);
+
+        var records = await Storage.GetRecordsAsync();
+        var existing = records.FirstOrDefault(r => r.DayNumber == targetDay);
+
+        if (existing != null)
+        {
+            CopyToCurrent(existing);
+            timestamp = "Loaded: " + existing.DateSaved.ToString("g");
+            return;
+        }
+
+        ClearTodayFields();
+        var prev = records.Where(r => r.DayNumber < targetDay)
+                          .OrderByDescending(r => r.DayNumber)
+                          .FirstOrDefault();
+        if (prev != null)
+        {
+            RolloverFrom(prev);
+            _current.IsElectionDay = false;
+            timestamp = "Rolled over from Day " + prev.DayNumber;
+        }
+        else
+        {
+            ClearBegFields();
+            _current.Eod = new SectionData();
+            _current.IsElectionDay = false;
+            timestamp = "New Session";
+        }
+    }
+
+    // ----- Lifecycle -----
+    protected override async Task OnInitializedAsync()
+    {
+        var records = await Storage.GetRecordsAsync();
+        var deduped = records.GroupBy(r => r.DayNumber)
+            .Select(g => g.OrderByDescending(r => r.DateSaved).First())
+            .ToList();
+        if (deduped.Count < records.Count)
+        {
+            await Storage.ReplaceAllAsync(deduped);
+            records = deduped;
+        }
+        history = records.OrderByDescending(r => r.DayNumber).ToList();
+
+        var latest = history.FirstOrDefault();
+        if (latest != null)
+        {
+            _current.DayNumber = latest.DayNumber + 1;
+            _current.PageDate = latest.PageDate.AddDays(1);
+            ClearTodayFields();
+            RolloverFrom(latest);
+            timestamp = "Rolled over from Day " + latest.DayNumber;
+        }
+    }
+
+    private async Task RefreshHistory()
+    {
+        var records = await Storage.GetRecordsAsync();
+        history = records.OrderByDescending(r => r.DayNumber).ToList();
+    }
+
+    private async Task SaveRecord()
+    {
+        var records = await Storage.GetRecordsAsync();
+        var dup = records.FirstOrDefault(r => r.DayNumber == _current.DayNumber);
+        if (dup != null)
+            await Storage.DeleteRecordAsync(dup.Id);
+
+        _current.DateSaved = DateTime.Now;
+
+        // Compute EOD values
+        _current.Eod.Sheets.Provisionals = _current.Beg.Sheets.Provisionals + _current.Daily.Sheets.Provisionals;
+        _current.Eod.Cards.Provisionals = _current.Beg.Cards.Provisionals + _current.Daily.Cards.Provisionals;
+        _current.Eod.Sheets.Spoiled = _current.Beg.Sheets.Spoiled + _current.Daily.Sheets.Spoiled;
+        _current.Eod.Cards.Spoiled = _current.Beg.Cards.Spoiled + _current.Daily.Cards.Spoiled;
+        _current.Eod.Sheets.CastInBox = _current.Beg.Sheets.CastInBox + _current.Daily.Sheets.CastInBox;
+        _current.Eod.Cards.CastInBox = _current.Beg.Cards.CastInBox + _current.Daily.Cards.CastInBox;
+        _current.Eod.Sheets.Unused = _current.Daily.Sheets.Unused;
+        _current.Eod.Cards.Unused = _current.Daily.Cards.Unused;
+
+        var record = new RevisedBallotRecord
+        {
+            Id = 0,
+            DateSaved = _current.DateSaved,
+            PageDate = _current.PageDate,
+            DayNumber = _current.DayNumber,
+            IsElectionDay = _current.IsElectionDay,
+            DeliveredSheets = _current.DeliveredSheets,
+            DeliveredCards = _current.DeliveredCards,
+            Beg = new SectionData
+            {
+                Sheets = new Snapshot
+                {
+                    Provisionals = _current.Beg.Sheets.Provisionals,
+                    Spoiled = _current.Beg.Sheets.Spoiled,
+                    CastInBox = _current.Beg.Sheets.CastInBox,
+                    Unused = _current.Beg.Sheets.Unused,
+                    Signatures = _current.Beg.Sheets.Signatures
+                },
+                Cards = new Snapshot
+                {
+                    Provisionals = _current.Beg.Cards.Provisionals,
+                    Spoiled = _current.Beg.Cards.Spoiled,
+                    CastInBox = _current.Beg.Cards.CastInBox,
+                    Unused = _current.Beg.Cards.Unused,
+                    Signatures = _current.Beg.Cards.Signatures
+                },
+                PublicCount = _current.Beg.PublicCount
+            },
+            Daily = new SectionData
+            {
+                Sheets = new Snapshot
+                {
+                    CastInBox = _current.Daily.Sheets.CastInBox,
+                    Signatures = _current.Daily.Sheets.Signatures,
+                    Provisionals = _current.Daily.Sheets.Provisionals,
+                    Spoiled = _current.Daily.Sheets.Spoiled,
+                    Unused = _current.Daily.Sheets.Unused
+                },
+                Cards = new Snapshot
+                {
+                    CastInBox = _current.Daily.Cards.CastInBox,
+                    Signatures = _current.Daily.Cards.Signatures,
+                    Provisionals = _current.Daily.Cards.Provisionals,
+                    Spoiled = _current.Daily.Cards.Spoiled,
+                    Unused = _current.Daily.Cards.Unused
+                },
+                PublicCount = 0
+            },
+            Eod = new SectionData
+            {
+                Sheets = new Snapshot
+                {
+                    Provisionals = _current.Eod.Sheets.Provisionals,
+                    Spoiled = _current.Eod.Sheets.Spoiled,
+                    CastInBox = _current.Eod.Sheets.CastInBox,
+                    Unused = _current.Eod.Sheets.Unused
+                },
+                Cards = new Snapshot
+                {
+                    Provisionals = _current.Eod.Cards.Provisionals,
+                    Spoiled = _current.Eod.Cards.Spoiled,
+                    CastInBox = _current.Eod.Cards.CastInBox,
+                    Unused = _current.Eod.Cards.Unused
+                },
+                PublicCount = _current.Eod.PublicCount
+            }
+        };
+
+        await Storage.AddRecordAsync(record);
+        await RefreshHistory();
+        timestamp = "Last Saved: " + _current.DateSaved.ToString("g");
+    }
+
+    private void LoadRecord(RevisedBallotRecord r)
+    {
+        if (r is null) return;
+        CopyToCurrent(r);
+        timestamp = "Loaded: " + r.DateSaved.ToString("g");
+    }
+
+    private async Task DeleteRecord(RevisedBallotRecord record)
+    {
+        await Storage.DeleteRecordAsync(record.Id);
+        await RefreshHistory();
+    }
+
+    private async Task ResetAll()
+    {
+        resetBusy = true;
+        var records = await Storage.GetRecordsAsync();
+        var latest = records.OrderByDescending(r => r.DayNumber).FirstOrDefault();
+        if (latest != null)
+        {
+            _current.DayNumber = latest.DayNumber + 1;
+            _current.PageDate = latest.PageDate.AddDays(1);
+            _current.IsElectionDay = false;
+            ClearTodayFields();
+            RolloverFrom(latest);
+            timestamp = "Rolled over from Day " + latest.DayNumber;
+        }
+        else
+        {
+            _current.PageDate = DateTime.Today;
+            _current.DayNumber = 1;
+            _current.IsElectionDay = false;
+            ClearAllFields();
+            timestamp = "New Session";
+        }
+        resetBusy = false;
+    }
+}
