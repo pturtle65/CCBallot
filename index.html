@@ -28,6 +28,17 @@ if (el && typeof el.showPicker === 'function') {
 el.showPicker();
 }
 };
+window.downloadFile = function (filename, content) {
+var blob = new Blob([content], { type: 'application/json' });
+var url = URL.createObjectURL(blob);
+var a = document.createElement('a');
+a.href = url;
+a.download = filename;
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+URL.revokeObjectURL(url);
+};
 </script>
 <script src="_framework/blazor.webassembly.js"></script>
 </body>

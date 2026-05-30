@@ -175,6 +175,7 @@
     <button @onclick="SaveRecord" style="font-weight:bold">Save</button>
     <button @onclick="ResetAll" disabled="@resetBusy">Reset All</button>
     <button @onclick="@(() => JS.InvokeVoidAsync("window.print"))">Print Report</button>
+    <button @onclick="ExportJsonAsync">Export JSON</button>
 </div>
 
 <div class="history-section" style="margin-top: 40px;">
@@ -191,8 +192,9 @@
                     <th>Date</th>
                     <th>Day</th>
                     <th>Type</th>
-                    <th>Sheets</th>
-                    <th>Cards</th>
+                    <th>Unused S</th>
+                    <th>Unused C</th>
+                    <th>EOD Pub</th>
                     <th>Lost</th>
                     <th>Actions</th>
                 </tr>
@@ -201,11 +203,12 @@
                 @foreach (var record in history)
                 {
                     <tr>
-                        <td>@record.PageDate.ToString("MM/dd")</td>
+                        <td>@record.PageDate.ToString("MM/dd ddd")</td>
                         <td>@record.DayNumber</td>
                         <td>@(record.IsElectionDay ? "ED" : "EV")</td>
-                        <td>@record.DeliveredSheets</td>
-                        <td>@record.DeliveredCards</td>
+                        <td>@record.Eod.Sheets.Unused</td>
+                        <td>@record.Eod.Cards.Unused</td>
+                        <td>@record.Eod.PublicCount</td>
                         <td style="color: @(LostFromRecord(record) != 0 ? "red" : "black")">@LostFromRecord(record)</td>
                         <td>
                             <button @onclick="() => LoadRecord(record)">Load</button>
@@ -554,6 +557,12 @@
     {
         await Storage.DeleteRecordAsync(record.Id);
         await RefreshHistory();
+    }
+
+    private async Task ExportJsonAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(history, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        await JS.InvokeVoidAsync("downloadFile", "ballot-history.json", json);
     }
 
     private async Task TriggerDatePicker()
