@@ -24,7 +24,7 @@
       <Output TaskParameter="Lines" ItemName="_IndexLines" />
     </ReadLinesFromFile>
     <WriteLinesToFile File="$(_IndexPath)"
-        Lines="@(_IndexLines->Replace('href=&quot;/&quot;', 'href=&quot;/ccballot/&quot;'))"
+        Lines="@(_IndexLines->Replace('href=&quot;/&quot;', 'href=&quot;/CCBallot/&quot;'))"
         Overwrite="true" />
   </Target>
 
