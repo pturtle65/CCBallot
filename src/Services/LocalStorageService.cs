@@ -3,7 +3,7 @@ using Microsoft.JSInterop;
 
 namespace ccballot.Services;
 
-public class LocalStorageService
+public class LocalStorageService : IDbStorageService
 {
     private const string StorageKey = "ccballot_data";
     private readonly IJSRuntime _js;

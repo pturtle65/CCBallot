@@ -1,9 +1,23 @@
 ﻿@page "/"
 @using ccballot.Services
-@inject LocalStorageService Storage
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IDbStorageService Storage
 @inject IJSRuntime JS
+@inject IConfiguration Configuration
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
 
 <PageTitle>Ballots - Blazor Edition</PageTitle>
+
+@if (showWelcome)
+{
+    <div class="welcome" style="max-width: 600px; margin: 2rem auto; padding: 2rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <h2 style="color: #1b6ec2; margin-bottom: 1rem;">Welcome to the Ballot Tracking System</h2>
+        <p style="line-height: 1.6; color: #333;">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+    </div>
+}
+else
+{
 
 <table class="ballots">
     <tr class="blue" style="border: 2px solid black;">
@@ -15,8 +29,8 @@
             <input id="dayNumber" @bind="_current.DayNumber" @bind:event="oninput" type="number" class="narrow" style="width:50px;" min="1">
             <button @onclick="() => GoToDayAsync(_current.DayNumber + 1)" title="Next day">&gt;&gt;</button>
             <span style="margin:auto 0; margin-left:6px;">
-                <label style="cursor:pointer;"><input type="radio" name="evEd" checked="@(!_current.IsElectionDay)" @onchange="() => _current.IsElectionDay = false" /> EV</label>
-                <label style="cursor:pointer; margin-left:8px;"><input type="radio" name="evEd" checked="@_current.IsElectionDay" @onchange="() => _current.IsElectionDay = true" /> ED</label>
+                <label style="cursor:pointer;"><input type="radio" name="evEd" checked="@(!_current.IsElectionDay)" @onchange="() => ToggleEvEd(false)" /> EV</label>
+                <label style="cursor:pointer; margin-left:8px;"><input type="radio" name="evEd" checked="@_current.IsElectionDay" @onchange="() => ToggleEvEd(true)" /> ED</label>
             </span>
         </td>
     </tr>
@@ -42,6 +56,13 @@
         <td>@deliveredTotal</td>
     </tr>
 
+    <tr class="section">
+        <th colspan="4">
+            <button @onclick="ToggleBeg" style="background:none;border:none;cursor:pointer;font-weight:bold;color:inherit;padding:0;margin-right:8px;">@(begExpanded ? "\u25BC" : "\u25B6")</button>
+            Carried-In (BEG)
+        </th>
+    </tr>
+    <tbody style="display: @(!begExpanded ? "none" : "")">
     <tr class="blue">
         <td><label>BEG Cast in Ballot Box</label></td>
         <td>@_current.Beg.Sheets.CastInBox</td>
@@ -67,14 +88,15 @@
         <td>@(begUnusedSheets + begUnusedCards)</td>
     </tr>
     <tr class="blue">
-        <td><label>BEG Public Count</label></td>
-        <td colspan="3">@_current.Beg.PublicCount</td>
-    </tr>
-    <tr class="blue">
         <td><label>BEG Lost Ballots</label></td>
         <td>0</td>
         <td>0</td>
         <td>0</td>
+    </tr>
+    </tbody>
+    <tr class="blue">
+        <td><label>BEG Public Count</label></td>
+        <td colspan="3">@_current.Beg.PublicCount</td>
     </tr>
 
     <tr class="section"><th colspan="4">Today's Action</th></tr>
@@ -120,11 +142,17 @@
         <td style="color: @(lostCalc != 0 ? "red" : "black"); font-weight: @(lostCalc != 0 ? "bold" : "normal")">@lostCalc</td>
     </tr>
 
-    <tr class="section"><th colspan="4">EOD Summary</th></tr>
+    <tr class="section">
+        <th colspan="4">
+            <button @onclick="ToggleEod" style="background:none;border:none;cursor:pointer;font-weight:bold;color:inherit;padding:0;margin-right:8px;">@(eodExpanded ? "\u25BC" : "\u25B6")</button>
+            Carried-Out (EOD)
+        </th>
+    </tr>
     <tr class="blue">
         <td><label for="eodPublicCount">EOD Public Count</label></td>
         <td colspan="3"><input id="eodPublicCount" @bind="_current.Eod.PublicCount" @bind:event="oninput" type="number" class="narrow @(sigsTodayTotal != netPublicCount ? "invalid-input" : "")"></td>
     </tr>
+    <tbody style="display: @(!eodExpanded ? "none" : "")">
     <tr class="blue">
         <td><label>EOD Cast in Ballot Box</label></td>
         <td>@(_current.Beg.Sheets.CastInBox + _current.Daily.Sheets.CastInBox)</td>
@@ -155,6 +183,7 @@
         <td style="color: @(lostCards != 0 ? "red" : "black"); font-weight: @(lostCards != 0 ? "bold" : "normal")">@lostCards</td>
         <td style="color: @(lostCalc != 0 ? "red" : "black"); font-weight: @(lostCalc != 0 ? "bold" : "normal")">@lostCalc</td>
     </tr>
+    </tbody>
 </table>
 
 <div class="status-box @(isValid ? "success" : "error")">
@@ -220,8 +249,12 @@
         </table>
     }
 </div>
+}
 
 @code {
+    private bool showWelcome;
+    private bool begExpanded = true;
+    private bool eodExpanded = true;
     private RevisedBallotRecord _current = new();
     private string timestamp = "New Session";
     private bool resetBusy;
@@ -276,6 +309,41 @@
     // ----- Helpers -----
     private void ClearTodayFields() => _current.Daily = new SectionData();
     private void ClearBegFields() => _current.Beg = new SectionData();
+
+    private async Task ToggleEvEd(bool isElectionDay)
+    {
+        if (_current.IsElectionDay == isElectionDay) return;
+        _current.IsElectionDay = isElectionDay;
+
+        if (!isElectionDay) return;
+
+        if (_current.Beg.Sheets.Provisionals != 0 || _current.Beg.Sheets.Spoiled != 0 ||
+            _current.Beg.Sheets.CastInBox != 0 || _current.Beg.PublicCount != 0)
+            return;
+
+        var records = await Storage.GetRecordsAsync();
+        var deduped = records.GroupBy(r => r.DayNumber)
+            .Select(g => g.OrderByDescending(r => r.DateSaved).First())
+            .ToList();
+        var prev = deduped.Where(r => r.DayNumber < _current.DayNumber)
+                          .OrderByDescending(r => r.DayNumber)
+                          .FirstOrDefault();
+        if (prev != null)
+        {
+            RolloverFrom(prev);
+            timestamp = "Rolled over from Day " + prev.DayNumber;
+        }
+    }
+
+    private void ToggleBeg()
+    {
+        begExpanded = !begExpanded;
+    }
+
+    private void ToggleEod()
+    {
+        eodExpanded = !eodExpanded;
+    }
 
     private void ClearAllFields()
     {
@@ -425,6 +493,26 @@
     // ----- Lifecycle -----
     protected override async Task OnInitializedAsync()
     {
+        var storageMode = Configuration.GetValue<string>("StorageMode") ?? "LocalStorage";
+
+        if (storageMode == "SqlServer")
+        {
+            var authState = await AuthState.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated != true)
+            {
+                Navigation.NavigateTo("Identity/Account/Login", forceLoad: true);
+                return;
+            }
+
+            if (!user.IsInRole("Admin"))
+            {
+                showWelcome = true;
+                return;
+            }
+        }
+
         var records = await Storage.GetRecordsAsync();
         var deduped = records.GroupBy(r => r.DayNumber)
             .Select(g => g.OrderByDescending(r => r.DateSaved).First())

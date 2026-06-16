@@ -1,0 +1,46 @@
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+
+<nav class="nav-menu">
+    @{
+        var storageMode = Configuration.GetValue<string>("StorageMode") ?? "LocalStorage";
+    }
+
+    @if (storageMode == "SqlServer")
+    {
+        <AuthorizeView>
+            <Authorized>
+                <AuthorizeView Roles="Admin" Context="adminView">
+                    <Authorized>
+                        <div class="nav-group">
+                            <button class="nav-toggle" @onclick="ToggleAdmin">
+                                @(adminExpanded ? "\u25BC" : "\u25B6") Admin
+                            </button>
+                            @if (adminExpanded)
+                            {
+                                <NavLink class="nav-item" href="/" Match="NavLinkMatch.All">
+                                    Ballot Accountability Form
+                                </NavLink>
+                            }
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+            </Authorized>
+        </AuthorizeView>
+    }
+    else
+    {
+        <NavLink class="nav-item" href="/" Match="NavLinkMatch.All">
+            Ballot Accountability Form
+        </NavLink>
+    }
+</nav>
+
+@code {
+    private bool adminExpanded;
+
+    private void ToggleAdmin()
+    {
+        adminExpanded = !adminExpanded;
+    }
+}
